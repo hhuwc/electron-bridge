@@ -1,0 +1,62 @@
+<!-- webview.html - webview内部页面 -->
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Webview Sync Bridge</title>
+</head>
+<body>
+    <h1>Webview 页面</h1>
+    <button onclick="testSyncCall()">测试同步调用</button>
+    <pre id="result"></pre>
+
+    <script>
+        // 同步调用Bridge方法，会阻塞线程直到结果返回
+        function syncBridgeCall(method, params) {
+            console.log(`开始同步调用: ${method}`);
+            const startTime = Date.now();
+            
+            const xhr = new XMLHttpRequest();
+            // 发起同步请求到自定义URL
+            xhr.open('POST', 'http://localhost:8080/sync-bridge', false); // 关键: async: false 实现同步阻塞
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            
+            try {
+                // 发送请求，此处会阻塞线程
+                xhr.send(JSON.stringify({ method, params }));
+                
+                const endTime = Date.now();
+                console.log(`同步调用完成，耗时: ${endTime - startTime}ms`);
+                
+                // 解析响应结果
+                return JSON.parse(xhr.responseText);
+            } catch (error) {
+                console.error('同步调用出错:', error);
+                throw error;
+            }
+        }
+
+        // 测试同步调用的函数
+        function testSyncCall() {
+            const resultElement = document.getElementById('result');
+            resultElement.textContent = '正在发起同步调用...（会阻塞线程）';
+            
+            try {
+                // 测试1: 获取系统信息
+                const sysInfo = syncBridgeCall('getSystemInfo', { detail: true });
+                resultElement.textContent += '\n\n系统信息:\n' + JSON.stringify(sysInfo, null, 2);
+                
+                // 测试2: 执行加法计算
+                const sumResult = syncBridgeCall('calculateSum', { a: 10, b: 20 });
+                resultElement.textContent += '\n\n计算结果:\n' + JSON.stringify(sumResult, null, 2);
+                
+                // 测试3: 模拟耗时操作
+                const slowResult = syncBridgeCall('slowOperation', { delay: 1000 });
+                resultElement.textContent += '\n\n耗时操作结果:\n' + JSON.stringify(slowResult, null, 2);
+            } catch (error) {
+                resultElement.textContent += '\n\n调用出错: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
