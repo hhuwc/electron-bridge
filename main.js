@@ -1,9 +1,90 @@
 // main.js - Electron主进程
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, protocol, webContents } = require("electron");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
-const { session, webContents } = require("electron");
+const { Readable } = require('stream');
+
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'mp-bridge',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      allowServiceWorkers: true,
+      bypassCSP: true
+    }
+  }
+])
+
+app.whenReady().then(() => {
+  // 注册 "mp-bridge" 自定义协议
+  protocol.handle('mp-bridge', async (request) => {
+    // 处理带或不带尾部斜杠的URL
+    const url = request.url.replace(/\/$/, ''); // 移除尾部斜杠
+    if (url !== 'mp-bridge://sync') {
+      return new Response('Not Found', { status: 404 });
+    }
+    
+    console.log('mp-bridge request:', request.url, request.method);
+    console.log('处理后的URL:', url);
+
+    try {
+      // 获取请求体数据
+      let requestBody = '';
+      if (request.method === 'POST' && request.body) {
+        const reader = request.body.getReader();
+        const decoder = new TextDecoder();
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          requestBody += decoder.decode(value, { stream: true });
+        }
+      }
+
+      // 解析请求数据
+      const { method, params } = JSON.parse(requestBody);
+      console.log('处理方法:', method, '参数:', params);
+
+      // 调用现有的处理函数
+      const result = handle({ method, params });
+      
+      // 返回响应
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          const res = new Response(JSON.stringify(result), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            }
+          });
+          resolve(res)
+        }, 1000)
+      });
+    } catch (error) {
+      console.error('Protocol handler error:', error);
+      return new Response(JSON.stringify({
+        code: 1,
+        msg: error.message
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      });
+    }
+  });
+})
+
+
 
 let mainWindow;
 
@@ -67,10 +148,10 @@ ipcMain.on("webview-loaded", (event, webContentsId) => {
           fs.writeFileSync(tempPath, JSON.stringify(res), "utf8");
 
           // 3. 重定向到本地文件（file:协议，避免跨协议安全限制）
-          callback({  
+          callback({
             // cancel: true,
             // redirectURL: `https://www.baidu.com` 
-            redirectURL: `file://${tempPath}` 
+            redirectURL: `file://${tempPath}`
           });
 
           //   callback({
@@ -116,9 +197,9 @@ function handle({ method, params }) {
           timestamp: new Date().toISOString(),
           detail: params.detail
             ? {
-                arch: process.arch,
-                release: process.release.name,
-              }
+              arch: process.arch,
+              release: process.release.name,
+            }
             : undefined,
         };
         break;
