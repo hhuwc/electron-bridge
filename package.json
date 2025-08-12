@@ -1,11 +1,30 @@
 {
   "name": "electron-webview-sync-bridge",
   "version": "1.0.0",
-  "main": "main.js",
+  "type": "module",
+  "main": "dist/main/main.cjs",
   "scripts": {
-    "start": "electron ."
+    "dev": "npm run build:main && npm run build:preload && concurrently \"npm run dev:renderer\" \"npm run dev:main\" \"npm run dev:preload\" \"wait-on dist/main/main.cjs dist/preload/preload.cjs && cross-env NODE_ENV=development electron .\"",
+    "dev:renderer": "vite --config vite.renderer.config.js",
+    "dev:main": "vite build --config vite.main.config.js --watch --mode development",
+    "dev:preload": "vite build --config vite.preload.config.js --watch --mode development",
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "build:main": "vite build --config vite.main.config.js",
+    "build:preload": "vite build --config vite.preload.config.js",
+    "build:renderer": "vite build --config vite.renderer.config.js && mv dist/renderer/src/renderer/main/index.html dist/renderer/main.html && mv dist/renderer/src/renderer/mp-service/index.html dist/renderer/mp-service.html && mv dist/renderer/src/renderer/mp-render/index.html dist/renderer/mp-render.html && rm -rf dist/renderer/src",
+    "start": "electron .",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.1.0",
+    "concurrently": "^9.0.0",
+    "cross-env": "^7.0.3",
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0",
+    "vite": "^5.4.0",
+    "wait-on": "^8.0.0"
   },
   "dependencies": {
-    "electron": "^28.3.3"
+    "vue": "^3.5.0"
   }
 }
